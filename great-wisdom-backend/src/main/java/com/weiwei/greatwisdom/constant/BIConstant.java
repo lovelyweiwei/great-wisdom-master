@@ -8,6 +8,11 @@ package com.weiwei.greatwisdom.constant;
  */
 public interface BIConstant {
 
-    Long BI_MODEL_ID = 1659171950288818178L;
+    //Long BI_MODEL_ID = 1659171950288818178L;
+    /**
+     * 我创建的bi智能AI
+     */
+    Long BI_MODEL_ID = 1678305555065724929L;
+
 }
 

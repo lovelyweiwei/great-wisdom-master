@@ -9,6 +9,7 @@ import React, { useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import HeaderDropdown from '../HeaderDropdown';
 import {userLogoutUsingPOST} from "@/services/great-wisdom/userController";
+import {ItemType} from "antd/es/menu/hooks/useItems";
 
 export type GlobalHeaderRightProps = {
   menu?: boolean;
@@ -58,6 +59,16 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({ menu, childre
   });
   const { initialState, setInitialState } = useModel('@@initialState');
 
+  const handleDownload = () => {
+    const fileUrl = 'testdata/测试数据1.xlsx';
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = "测试数据1.xlsx";
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.click();
+  };
+
   const onMenuClick = useCallback(
     (event: MenuInfo) => {
       const { key } = event;
@@ -66,6 +77,10 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({ menu, childre
           setInitialState((s) => ({ ...s, currentUser: undefined }));
         });
         loginOut();
+        return;
+      }
+      if (key === 'download') {
+        handleDownload();
         return;
       }
       history.push(`/account/${key}`);
@@ -95,24 +110,18 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({ menu, childre
     return loading;
   }
 
-  const menuItems = [
-    ...(menu
-      ? [
+  const menuItems: ItemType[] = [
+    ...( [
           {
-            key: 'center',
-            icon: <UserOutlined />,
-            label: '个人中心',
-          },
-          {
-            key: 'settings',
+            key: 'download',
             icon: <SettingOutlined />,
-            label: '个人设置',
+            label: '测试数据下载',
           },
           {
             type: 'divider' as const,
           },
         ]
-      : []),
+      ),
     {
       key: 'logout',
       icon: <LogoutOutlined />,

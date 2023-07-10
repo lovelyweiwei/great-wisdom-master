@@ -22,6 +22,8 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
 
 import javax.servlet.http.HttpServletRequest;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -71,12 +73,36 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             user.setUserAccount(userAccount);
             user.setUserName(userAccount);
             user.setUserPassword(encryptPassword);
+            //加入头像
+            String avatarUrl = "https://www.loliapi.com/acg/pp/";
+            String redirectUrl = null;
+            try {
+                redirectUrl = getRedirectUrl(avatarUrl);
+            } catch (Exception e) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR);
+            }
+            user.setUserAvatar(redirectUrl);
             boolean saveResult = this.save(user);
             if (!saveResult) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
             }
             return user.getId();
         }
+    }
+
+    /**
+     * 获取重定向地址
+     * @param path
+     * @return
+     * @throws Exception
+     */
+    private String getRedirectUrl(String path) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(path)
+                .openConnection();
+        conn.setInstanceFollowRedirects(false);
+        conn.setConnectTimeout(5000);
+        String location = conn.getHeaderField("Location");
+        return location;
     }
 
     @Override

@@ -15,19 +15,19 @@ const Footer: React.FC = () => {
         {
           key: '大聪明智能 BI',
           title: '大聪明智能 BI',
-          href: 'https://pro.ant.design',
+          href: 'https://gitee.com/weiweibiubiu/great-wisdom-master',
           blankTarget: true,
         },
         {
           key: 'github',
           title: <GithubOutlined />,
-          href: 'https://github.com/ant-design/ant-design-pro',
+          href: 'https://github.com/lovelyweiwei/great-wisdom-master',
           blankTarget: true,
         },
         {
           key: '大聪明智能 BI ',
           title: '大聪明智能 BI ',
-          href: 'https://ant.design',
+          href: 'https://github.com/lovelyweiwei/great-wisdom-master',
           blankTarget: true,
         },
       ]}

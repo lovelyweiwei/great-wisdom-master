@@ -18,6 +18,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
+import java.util.concurrent.*;
 
 /**
  * bi 消费者
@@ -34,6 +35,11 @@ public class BiMqMessageConsumer {
 
     @Resource
     private AiManager aiManager;
+
+    /**
+     * 超时时间 = 100s
+     */
+    long TIME_OUT = 1000 * 100;
 
     @SneakyThrows
     @RabbitListener(queues = {BiMqConstant.BI_QUEUE_NAME}, ackMode = "MANUAL")
@@ -58,8 +64,33 @@ public class BiMqMessageConsumer {
             handleChartUpdateError(chart.getId(), "更新图表·执行中状态·失败");
             return;
         }
-        //调用AI
-        String chatResult = aiManager.doChat(BIConstant.BI_MODEL_ID, buildUserInput(chart));
+
+        // 设置超时时间限制  100 s
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
+            // 执行耗时的方法
+            //调用AI
+            String chatResult = aiManager.doChat(BIConstant.BI_MODEL_ID, buildUserInput(chart));
+            return chatResult;
+        });
+
+        String chatResult = null;
+        try {
+            chatResult = future.get(100, TimeUnit.SECONDS);
+            // 处理方法的返回结果
+        } catch (InterruptedException e) {
+            // 处理中断异常
+            channel.basicNack(deliveryTag, false, false);
+            handleChartUpdateError(chart.getId(), "AI 生成中断");
+        } catch (ExecutionException e) {
+            // 处理方法执行异常
+        } catch (TimeoutException e) {
+            // 超时处理
+            future.cancel(true);
+            // 抛出超时异常或执行其他错误处理
+            channel.basicNack(deliveryTag, false, false);
+            handleChartUpdateError(chart.getId(), "AI 生成超时，请调整后重新尝试");
+        }
+
         //拆分结果
         String[] splits = chatResult.split("【【【【【");
         if (splits.length < 3) {
@@ -90,7 +121,7 @@ public class BiMqMessageConsumer {
      * @param chart
      * @return
      */
-    private String buildUserInput(Chart chart) {
+    public String buildUserInput(Chart chart) {
         String goal = chart.getGoal();
         String chartType = chart.getChartType();
         String chartData = chart.getChartData();

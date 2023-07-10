@@ -12,6 +12,8 @@ public interface BiMqConstant {
 
     static String BI_ROUTING_KEY = "bi";
 
+    static Long TIME_OUT = 1000 * 100L;
+
 
 }
 

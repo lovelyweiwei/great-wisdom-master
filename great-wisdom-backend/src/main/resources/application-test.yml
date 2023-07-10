@@ -8,7 +8,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/great_wisdom
     username: root
-    password: xxx
+    password: 666
   # Redis 配置
   # todo 需替换配置
   redis:
@@ -16,7 +16,7 @@ spring:
     host: localhost
     port: 6379
     timeout: 5000
-    password: xxx
+    password: 666
   # Elasticsearch 配置
   # todo 需替换配置
   elasticsearch:
