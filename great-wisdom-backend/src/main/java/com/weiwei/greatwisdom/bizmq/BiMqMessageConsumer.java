@@ -36,11 +36,6 @@ public class BiMqMessageConsumer {
     @Resource
     private AiManager aiManager;
 
-    /**
-     * 超时时间 = 100s
-     */
-    long TIME_OUT = 1000 * 100;
-
     @SneakyThrows
     @RabbitListener(queues = {BiMqConstant.BI_QUEUE_NAME}, ackMode = "MANUAL")
     private void receiveMessage(String message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {

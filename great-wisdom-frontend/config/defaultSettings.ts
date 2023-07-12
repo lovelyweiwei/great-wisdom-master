@@ -17,7 +17,7 @@ const Settings: ProLayoutProps & {
   colorWeak: false,
   title: '大聪明智能 BI',
   pwa: true,
-  logo: 'logo.svg',
+  logo: 'http://bi.ggbond.online/logo.svg',
   iconfontUrl: '',
   token: {
     // 参见ts声明，demo 见文档，通过token 修改样式

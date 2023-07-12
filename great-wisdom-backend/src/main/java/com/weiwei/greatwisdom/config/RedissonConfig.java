@@ -29,6 +29,6 @@ public class RedissonConfig {
                 .setDatabase(database)
                 .setAddress("redis://" + host + ":" + port)
                 .setPassword(password);
-        return Redisson.create();
+        return Redisson.create(config);
     }
 }

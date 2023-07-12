@@ -1,11 +1,7 @@
 import Footer from '@/components/Footer';
 import {
-  AlipayCircleOutlined,
   LockOutlined,
-  MobileOutlined,
-  TaobaoCircleOutlined,
   UserOutlined,
-  WeiboCircleOutlined,
 } from '@ant-design/icons';
 import { LoginForm, ProFormText } from '@ant-design/pro-components';
 import { useEmotionCss } from '@ant-design/use-emotion-css';
@@ -86,7 +82,7 @@ const Login: React.FC = () => {
             minWidth: 280,
             maxWidth: '75vw',
           }}
-          logo={<img alt="logo" src="139.9.104.196/logo.svg" />}
+          logo={<img alt="logo" src="/logo.svg" />}
           title="大聪明智能 BI 平台"
           subTitle={'会数据分析的大聪明'}
           onFinish={async (values) => {

@@ -31,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -45,6 +46,7 @@ import java.util.concurrent.*;
 @RestController
 @RequestMapping("/chart")
 @Slf4j
+@CrossOrigin
 public class ChartController {
 
     @Resource
@@ -64,6 +66,9 @@ public class ChartController {
 
     @Resource
     private BiMqMessageProducer biMqMessageProducer;
+
+    @Resource
+    private RedisTemplate redisTemplate;
 
     private final static Gson GSON = new Gson();
 
@@ -257,6 +262,7 @@ public class ChartController {
         String chartName = genChartByAiRequest.getChartName();
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
+
         // 校验
         ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
         ThrowUtils.throwIf(StringUtils.isNotBlank(chartName) && chartName.length() > 100, ErrorCode.PARAMS_ERROR, "名称过长");
@@ -293,13 +299,13 @@ public class ChartController {
         CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
             // 执行耗时的方法
             //调用AI
-            String chatResult = aiManager.doChat(BIConstant.BI_MODEL_ID, userInput.toString());
-            return chatResult;
+            String chartResult = aiManager.doChat(BIConstant.BI_MODEL_ID, userInput.toString());
+            return chartResult;
         });
 
-        String chatResult = null;
+        String chartResult = null;
         try {
-            chatResult = future.get(100, TimeUnit.SECONDS);
+            chartResult = future.get(100, TimeUnit.SECONDS);
             // 处理方法的返回结果
         } catch (InterruptedException e) {
             // 处理中断异常
@@ -313,7 +319,7 @@ public class ChartController {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 生成超时");
         }
 
-        String[] splits = chatResult.split("【【【【【");
+        String[] splits = chartResult.split("【【【【【");
         if (splits.length < 3) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 生成错误");
         }
@@ -408,17 +414,12 @@ public class ChartController {
                 handleChartUpdateError(chart.getId(), "更新图表·执行中状态·失败");
                 return;
             }
-            // 设置超时时间限制
-            long runtime = System.currentTimeMillis();
 
             //调用AI
-            String chatResult = aiManager.doChat(biModelId, userInput.toString());
-            long runtime2 = System.currentTimeMillis();
-            if ((runtime2 - runtime) > TIME_OUT) {
-                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 生成超时，请调整后重新尝试");
-            }
+            String chartResult = aiManager.doChat(biModelId, userInput.toString());
+
             //拆分结果
-            String[] splits = chatResult.split("【【【【【");
+            String[] splits = chartResult.split("【【【【【");
             if (splits.length < 3) {
                 handleChartUpdateError(chart.getId(), "AI 生成错误");
                 return;
@@ -486,8 +487,6 @@ public class ChartController {
         //限流判断，每个用户一个限流器
         redisLimiterManager.doRateLimit("getChartByAi_" + loginUser.getId());
 
-        long biModelId = BIConstant.BI_MODEL_ID;
-
         //用户输入
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求：").append("\n");
@@ -499,7 +498,7 @@ public class ChartController {
         userInput.append("原始数据：").append("\n");
         //获取压缩后的数据
         String result = ExcelUtils.excelToCsv(multipartFile);
-        userInput.append(result).append("\n");
+        //userInput.append(result).append("\n");
 
         //插入数据库
         Chart chart = new Chart();
