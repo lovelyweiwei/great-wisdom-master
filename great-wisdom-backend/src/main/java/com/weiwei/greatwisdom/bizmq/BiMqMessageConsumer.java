@@ -14,6 +14,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.formula.functions.BaseNumberUtils;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +23,7 @@ import java.util.concurrent.*;
 
 /**
  * bi 消费者
+ *
  * @Author weiwei
  * @Date 2023/7/6 23:56
  * @Version 1.0
@@ -35,6 +37,9 @@ public class BiMqMessageConsumer {
 
     @Resource
     private AiManager aiManager;
+
+    @Resource
+    private RedisTemplate redisTemplate;
 
     @SneakyThrows
     @RabbitListener(queues = {BiMqConstant.BI_QUEUE_NAME}, ackMode = "MANUAL")
@@ -54,6 +59,9 @@ public class BiMqMessageConsumer {
         updateChart.setId(chart.getId());
         updateChart.setChartStatus(ChartStatusEnum.RUNNING.getValue());
         boolean b = chartService.updateById(updateChart);
+        //删除缓存
+        redisTemplate.delete("chartPage_" + chart.getUserId());
+
         if (!b) {
             channel.basicNack(deliveryTag, false, false);
             handleChartUpdateError(chart.getId(), "更新图表·执行中状态·失败");
@@ -94,6 +102,10 @@ public class BiMqMessageConsumer {
             return;
         }
         String analyzeChart = splits[1].trim();
+        // 对可能出现的 “】】】】】” 进行判断
+        if (analyzeChart.contains("】】】】】")) {
+            analyzeChart = analyzeChart.substring(0, analyzeChart.length() - 5);
+        }
         String analyzeResult = splits[2].trim();
         //更改状态 succeed
         Chart updateChartResult = new Chart();
@@ -102,6 +114,8 @@ public class BiMqMessageConsumer {
         updateChartResult.setGenResult(analyzeResult);
         updateChartResult.setChartStatus(ChartStatusEnum.SUCCEED.getValue());
         boolean b2 = chartService.updateById(updateChartResult);
+        //删除缓存
+        redisTemplate.delete("chartPage_" + chart.getUserId());
         if (!b2) {
             channel.basicNack(deliveryTag, false, false);
             handleChartUpdateError(chart.getId(), "更新图表·成功状态·失败");
@@ -142,6 +156,9 @@ public class BiMqMessageConsumer {
         updateChartResult.setChartStatus(ChartStatusEnum.FAILED.getValue());
         updateChartResult.setExecMessage(execMessage);
         boolean b = chartService.updateById(updateChartResult);
+        //删除缓存
+        Chart chartTmp = chartService.getById(chartId);
+        redisTemplate.delete("chartPage_" + chartTmp.getUserId());
         if (!b) {
             log.error("更新图表失败信息失败，" + chartId + "," + execMessage);
         }

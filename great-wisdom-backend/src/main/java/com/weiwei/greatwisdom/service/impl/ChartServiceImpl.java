@@ -12,6 +12,10 @@ import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
+import java.util.List;
+import java.util.PrimitiveIterator;
+
 
 /**
 * @author 86199
@@ -21,6 +25,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
     implements ChartService {
+
+    @Resource
+    private ChartMapper chartMapper;
 
     /**
      * 获取查询包装类
@@ -51,6 +58,11 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
                 sortField);
         return queryWrapper;
+    }
+
+    @Override
+    public List<Chart> getAllCharts() {
+        return chartMapper.selectList(null);
     }
 
 }

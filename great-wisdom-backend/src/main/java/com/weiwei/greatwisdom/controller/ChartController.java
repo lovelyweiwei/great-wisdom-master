@@ -1,18 +1,16 @@
 package com.weiwei.greatwisdom.controller;
 
-import java.util.Arrays;
-
 import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.google.gson.Gson;
 import com.weiwei.greatwisdom.annotation.AuthCheck;
 import com.weiwei.greatwisdom.bizmq.BiMqMessageProducer;
+import com.weiwei.greatwisdom.bloomfilter.BloomFilterClient;
 import com.weiwei.greatwisdom.common.BaseResponse;
 import com.weiwei.greatwisdom.common.DeleteRequest;
 import com.weiwei.greatwisdom.common.ErrorCode;
 import com.weiwei.greatwisdom.common.ResultUtils;
 import com.weiwei.greatwisdom.constant.BIConstant;
-import com.weiwei.greatwisdom.constant.CommonConstant;
 import com.weiwei.greatwisdom.constant.UserConstant;
 import com.weiwei.greatwisdom.exception.BusinessException;
 import com.weiwei.greatwisdom.exception.ThrowUtils;
@@ -27,9 +25,7 @@ import com.weiwei.greatwisdom.service.ChartService;
 import com.weiwei.greatwisdom.service.UserService;
 import com.weiwei.greatwisdom.utils.ExcelUtils;
 import lombok.extern.slf4j.Slf4j;
-
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.SystemUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -37,6 +33,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -68,7 +65,10 @@ public class ChartController {
     private BiMqMessageProducer biMqMessageProducer;
 
     @Resource
-    private RedisTemplate redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Resource
+    private BloomFilterClient bloomFilterClient;
 
     private final static Gson GSON = new Gson();
 
@@ -133,6 +133,9 @@ public class ChartController {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         boolean b = chartService.removeById(id);
+        //删除缓存
+        redisTemplate.delete("chartPage_" + oldchart.getUserId());
+        redisTemplate.delete("chart_" + id);
         return ResultUtils.success(b);
     }
 
@@ -169,7 +172,19 @@ public class ChartController {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        Chart chart = chartService.getById(id);
+        // 使用布隆过滤器
+        boolean exists = bloomFilterClient.checkIfExists(id);
+        Chart chart = null;
+        if (exists) {
+            // 从 Redis 中获取 chart 对象
+            chart = (Chart) redisTemplate.opsForValue().get("chart_" + id);
+            if (chart == null) {
+                // 如果 Redis 中不存在 chart 对象，则从数据库中获取
+                chart = chartService.getById(id);
+                redisTemplate.opsForValue().set("chart_" + id, chart, 60, TimeUnit.MINUTES);
+            }
+        }
+
         if (chart == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
@@ -214,8 +229,15 @@ public class ChartController {
         long size = chartQueryRequest.getPageSize();
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
-        Page<Chart> chartPage = chartService.page(new Page<>(current, size),
-                chartService.getQueryWrapper(chartQueryRequest));
+
+        // 缓存分页信息 hash
+        Page<Chart> chartPage = (Page<Chart>) redisTemplate.opsForHash().get("chartPage_" + loginUser.getId(), current + "_" + size);
+        if (chartPage == null) {
+            chartPage = chartService.page(new Page<>(current, size),
+                    chartService.getQueryWrapper(chartQueryRequest));
+            redisTemplate.opsForHash().put("chartPage_" + loginUser.getId(), current + "_" + size, chartPage);
+            redisTemplate.expire("chartPage_" + loginUser.getId(), 60 * 10, TimeUnit.SECONDS);
+        }
         return ResultUtils.success(chartPage);
     }
 
@@ -324,6 +346,12 @@ public class ChartController {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 生成错误");
         }
         String genChart = splits[1].trim();
+        // 对可能出现的问题规避
+        if (genChart.contains("】】】】】")) {
+            genChart = genChart.substring(0, genChart.length() - 5);
+        }
+        //System.out.println(genChart);
+
         String genResult = splits[2].trim();
         // 插入到数据库
         Chart chart = new Chart();
@@ -336,12 +364,29 @@ public class ChartController {
         chart.setUserId(loginUser.getId());
         chart.setChartStatus(ChartStatusEnum.SUCCEED.getValue());
         boolean saveResult = chartService.save(chart);
+        // 添加到布隆过滤器
+        bloomFilterClient.addElement(chart.getId());
+        //删除缓存
+        redisTemplate.delete("chartPage_" + chart.getUserId());
+
         ThrowUtils.throwIf(!saveResult, ErrorCode.SYSTEM_ERROR, "图表保存失败");
         BiResponse biResponse = new BiResponse();
         biResponse.setGenChart(genChart);
         biResponse.setGenResult(genResult);
         biResponse.setChartId(chart.getId());
         return ResultUtils.success(biResponse);
+    }
+
+    private boolean insertChartWait(Chart chart, String chartName, String goal, String csvData, String chartType, String genChart, String genResult, User loginUser) {
+        chart.setChartName(chartName);
+        chart.setGoal(goal);
+        chart.setChartData(csvData);
+        chart.setChartType(chartType);
+        chart.setGenChart(genChart);
+        chart.setGenResult(genResult);
+        chart.setChartStatus(ChartStatusEnum.FAILED.getValue());
+        chart.setUserId(loginUser.getId());
+        return chartService.save(chart);
     }
 
     /**
@@ -378,8 +423,6 @@ public class ChartController {
 
         //无需添加prompt，写到了模型层面
 
-        long biModelId = 1659171950288818178L;
-
         //用户输入
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求：").append("\n");
@@ -395,13 +438,11 @@ public class ChartController {
 
         //插入数据库
         Chart chart = new Chart();
-        chart.setGoal(goal);
-        chart.setChartName(chartName);
-        chart.setChartData(result);
-        chart.setChartType(chartType);
-        chart.setChartStatus(ChartStatusEnum.SUCCEED.getValue());
-        chart.setUserId(loginUser.getId());
-        boolean saveResult = chartService.save(chart);
+        boolean saveResult = insertChartWait(chart, chartName, goal, result, chartType, null, null, loginUser);
+        // 添加到布隆过滤器
+        bloomFilterClient.addElement(chart.getId());
+        //删除缓存
+        redisTemplate.delete("chartPage_" + chart.getUserId());
         ThrowUtils.throwIf(!saveResult, ErrorCode.SYSTEM_ERROR, "图表保存失败");
 
         CompletableFuture.runAsync(() -> {
@@ -410,13 +451,15 @@ public class ChartController {
             updateChart.setId(chart.getId());
             updateChart.setChartStatus(ChartStatusEnum.RUNNING.getValue());
             boolean b = chartService.updateById(updateChart);
+            //删除缓存
+            redisTemplate.delete("chartPage_" + chart.getUserId());
             if (!b) {
                 handleChartUpdateError(chart.getId(), "更新图表·执行中状态·失败");
                 return;
             }
 
             //调用AI
-            String chartResult = aiManager.doChat(biModelId, userInput.toString());
+            String chartResult = aiManager.doChat(BIConstant.BI_MODEL_ID, userInput.toString());
 
             //拆分结果
             String[] splits = chartResult.split("【【【【【");
@@ -425,6 +468,10 @@ public class ChartController {
                 return;
             }
             String analyzeChart = splits[1].trim();
+            // 对可能出现的问题规避
+            if (analyzeChart.contains("】】】】】")) {
+                analyzeChart = analyzeChart.substring(0, analyzeChart.length() - 5);
+            }
             String analyzeResult = splits[2].trim();
             //更改状态 succeed
             Chart updateChartResult = new Chart();
@@ -433,6 +480,8 @@ public class ChartController {
             updateChartResult.setGenResult(analyzeResult);
             updateChartResult.setChartStatus(ChartStatusEnum.SUCCEED.getValue());
             boolean b2 = chartService.updateById(updateChartResult);
+            //删除缓存
+            redisTemplate.delete("chartPage_" + chart.getUserId());
             if (!b2) {
                 handleChartUpdateError(chart.getId(), "更新图表·成功状态·失败");
             }
@@ -450,6 +499,9 @@ public class ChartController {
         updateChartResult.setChartStatus(ChartStatusEnum.FAILED.getValue());
         updateChartResult.setExecMessage(execMessage);
         boolean b = chartService.updateById(updateChartResult);
+        //删除缓存
+        Chart chartTmp = chartService.getById(chartId);
+        redisTemplate.delete("chartPage_" + chartTmp.getUserId());
         if (!b) {
             log.error("更新图表失败信息失败，" + chartId + "," + execMessage);
         }
@@ -510,15 +562,19 @@ public class ChartController {
         chart.setUserId(loginUser.getId());
         boolean saveResult = chartService.save(chart);
         ThrowUtils.throwIf(!saveResult, ErrorCode.SYSTEM_ERROR, "图表保存失败");
+        // 添加到布隆过滤器
+        bloomFilterClient.addElement(chart.getId());
 
         // 使用消息队列
         long newChartId = chart.getId();
         biMqMessageProducer.sendMessage(String.valueOf(newChartId));
+        //删除缓存
+        redisTemplate.delete("chartPage_" + chart.getUserId());
 
         //返回前端
         BiResponse biResponse = new BiResponse();
         biResponse.setChartId(chart.getId());
         return ResultUtils.success(biResponse);
     }
-
 }
+
