@@ -61,6 +61,8 @@ public class BiMqMessageConsumer {
         boolean b = chartService.updateById(updateChart);
         //删除缓存
         redisTemplate.delete("chartPage_" + chart.getUserId());
+        // 删除单表缓存
+        redisTemplate.delete("chart_" + chart.getId());
 
         if (!b) {
             channel.basicNack(deliveryTag, false, false);
@@ -116,6 +118,8 @@ public class BiMqMessageConsumer {
         boolean b2 = chartService.updateById(updateChartResult);
         //删除缓存
         redisTemplate.delete("chartPage_" + chart.getUserId());
+        // 删除单表缓存
+        redisTemplate.delete("chart_" + chart.getId());
         if (!b2) {
             channel.basicNack(deliveryTag, false, false);
             handleChartUpdateError(chart.getId(), "更新图表·成功状态·失败");
@@ -159,6 +163,8 @@ public class BiMqMessageConsumer {
         //删除缓存
         Chart chartTmp = chartService.getById(chartId);
         redisTemplate.delete("chartPage_" + chartTmp.getUserId());
+        // 删除单表缓存
+        redisTemplate.delete("chart_" + chartId);
         if (!b) {
             log.error("更新图表失败信息失败，" + chartId + "," + execMessage);
         }

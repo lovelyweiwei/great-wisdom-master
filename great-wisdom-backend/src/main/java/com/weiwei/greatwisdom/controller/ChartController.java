@@ -158,6 +158,8 @@ public class ChartController {
         Chart oldchart = chartService.getById(id);
         ThrowUtils.throwIf(oldchart == null, ErrorCode.NOT_FOUND_ERROR);
         boolean result = chartService.updateById(chart);
+        // 删除单表缓存
+        redisTemplate.delete("chart_" + chart.getId());
         return ResultUtils.success(result);
     }
 
@@ -267,6 +269,8 @@ public class ChartController {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         boolean result = chartService.updateById(chart);
+        // 删除单表缓存
+        redisTemplate.delete("chart_" + chart.getId());
         return ResultUtils.success(result);
     }
 
@@ -453,6 +457,8 @@ public class ChartController {
             boolean b = chartService.updateById(updateChart);
             //删除缓存
             redisTemplate.delete("chartPage_" + chart.getUserId());
+            // 删除单表缓存
+            redisTemplate.delete("chart_" + chart.getId());
             if (!b) {
                 handleChartUpdateError(chart.getId(), "更新图表·执行中状态·失败");
                 return;
@@ -482,6 +488,8 @@ public class ChartController {
             boolean b2 = chartService.updateById(updateChartResult);
             //删除缓存
             redisTemplate.delete("chartPage_" + chart.getUserId());
+            // 删除单表缓存
+            redisTemplate.delete("chart_" + chart.getId());
             if (!b2) {
                 handleChartUpdateError(chart.getId(), "更新图表·成功状态·失败");
             }
@@ -502,6 +510,8 @@ public class ChartController {
         //删除缓存
         Chart chartTmp = chartService.getById(chartId);
         redisTemplate.delete("chartPage_" + chartTmp.getUserId());
+        // 删除单表缓存
+        redisTemplate.delete("chart_" + chartId);
         if (!b) {
             log.error("更新图表失败信息失败，" + chartId + "," + execMessage);
         }
