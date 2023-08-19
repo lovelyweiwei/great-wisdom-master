@@ -83,8 +83,8 @@ const Login: React.FC = () => {
             maxWidth: '75vw',
           }}
           logo={<img alt="logo" src="/logo.svg" />}
-          title="大聪明智能 BI 平台"
-          subTitle={'会数据分析的大聪明'}
+          title="大聪明智能数据分析平台"
+          subTitle={'一个会数据分析的大聪明'}
           onFinish={async (values) => {
             await handleSubmit(values as API.UserLoginRequest);
           }}

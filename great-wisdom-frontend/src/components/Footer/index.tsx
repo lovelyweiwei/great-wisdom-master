@@ -22,9 +22,9 @@ const Footer: React.FC = () => {
       }
       links={[
         {
-          key: '大聪明智能 BI',
-          title: '大聪明智能 BI',
-          href: 'https://gitee.com/weiweibiubiu/great-wisdom-master',
+          key: '大聪明智能',
+          title: '大聪明智能',
+          href: 'https://github.com/lovelyweiwei/great-wisdom-master',
           blankTarget: true,
         },
         {
@@ -34,9 +34,9 @@ const Footer: React.FC = () => {
           blankTarget: true,
         },
         {
-          key: '大聪明智能 BI ',
-          title: '大聪明智能 BI ',
-          href: 'https://github.com/lovelyweiwei/great-wisdom-master',
+          key: '大聪明智能数据分析平台 ',
+          title: '大聪明智能数据分析平台 ',
+          href: 'https://gitee.com/weiweibiubiu/great-wisdom-master',
           blankTarget: true,
         },
       ]}

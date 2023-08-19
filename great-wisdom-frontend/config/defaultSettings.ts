@@ -15,7 +15,7 @@ const Settings: ProLayoutProps & {
   fixedHeader: false,
   fixSiderbar: true,
   colorWeak: false,
-  title: '大聪明智能 BI',
+  title: '大聪明智能数据分析平台',
   pwa: true,
   logo: 'http://bi.ggbond.online/logo.svg',
   iconfontUrl: '',
